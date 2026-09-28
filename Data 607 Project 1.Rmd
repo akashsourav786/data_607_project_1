@@ -1,0 +1,120 @@
+---
+title: "Data 607 Project 1"
+author: "Akash Sourav"
+date: "2026-09-24"
+output: html_document
+---
+
+##Setup
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+
+## Approach
+
+For this project, I plan to use R to clean and organize the provided chess tournament text file into a structured dataset. I will extract each player’s name, state, total points, pre-tournament rating, and opponent information from the text. I will then use the opponent numbers to match each opponent with their pre-tournament rating and calculate the average opponent rating for every player. Finally, I will organize the results into a data frame and export the completed data as a CSV file. I will use online resources and LLM tools as needed to help understand the text-processing and data-cleaning methods required for the project.
+
+## Data Import
+
+```{r data extraction}
+tournament <- readLines("tournamentinfo.txt")
+head(tournament, 10)
+```
+
+## Data Parsing
+
+```{r clean up data}
+player_lines <- tournament[seq(5, length(tournament), by = 3)]
+
+head(player_lines)
+length(player_lines)
+```
+
+
+
+```{r extract all player info}
+player_number <- as.numeric(
+  trimws(substr(player_lines, 1, 5))
+)
+
+player_name <- trimws(
+  substr(player_lines, 7, 40)
+)
+
+total_points <- as.numeric(
+  trimws(substr(player_lines, 42, 45))
+)
+
+players <- data.frame(
+  player_number,
+  player_name,
+  total_points
+)
+
+head(players)
+```
+
+
+```{r add rating colomn}
+rating_lines <- tournament[seq(6, length(tournament), by = 3)]
+
+players$state <- trimws(substr(rating_lines, 1, 5))
+
+players$pre_rating <- as.numeric(
+  sub(".*R:\\s*([0-9]+).*", "\\1", rating_lines)
+)
+
+head(players)
+```
+
+
+```{r}
+round_results <- strsplit(player_lines, "|", fixed = TRUE)
+
+opponent_numbers <- lapply(round_results, function(fields) {
+  as.numeric(stringr::str_extract(fields[4:10], "\\d+"))
+})
+
+opponent_numbers[[1]]
+```
+
+
+
+```{r}
+players$avg_opponent_rating <- sapply(opponent_numbers, function(opponents) {
+  opponent_ratings <- players$pre_rating[
+    match(opponents, players$player_number)
+  ]
+
+  round(mean(opponent_ratings, na.rm = TRUE))
+})
+
+head(players)
+```
+
+## Creating CSV file
+
+```{r}
+final_results <- data.frame(
+  "Player Name" = players$player_name,
+  "State" = players$state,
+  "Total Points" = players$total_points,
+  "Pre-Rating" = players$pre_rating,
+  "Average Opponent Pre-Rating" = players$avg_opponent_rating,
+  check.names = FALSE
+)
+
+knitr::kable(head(final_results))
+
+write.csv(final_results, "chess_results.csv", row.names = FALSE)
+```
+
+
+## Findings and Suggestions
+
+The tournament text file was successfully transformed into a structured dataset containing 64 players. The final CSV includes each player’s name, state, total points, pre-tournament rating, and average opponent pre-tournament rating. Rounds without an opponent were excluded from the average. As a validation check, Gary Hua’s average opponent rating matched the expected value of 1605.
+
+Average opponent rating provides additional context when comparing players’ tournament results because players faced opponents of different strengths. Future analysis could explore the relationship between pre-tournament ratings and total points, or examine how opponent strength relates to performance. The extraction process could also be improved by identifying player records through text patterns rather than relying on fixed line positions, making it more adaptable to changes in the source file.
